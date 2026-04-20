@@ -1,6 +1,6 @@
 use crate::error;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     // Single-character tokens
     LeftParen, RightParen, LeftBrace, RightBrace,
@@ -22,7 +22,7 @@ pub enum TokenType {
     Eof,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Number(f64),
     String(String),
@@ -30,7 +30,7 @@ pub enum Literal {
     Nil,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
@@ -73,10 +73,7 @@ impl<'a> Scanner<'a> {
         self.tokens
     }
 
-    fn is_at_end(&self) -> bool {
-        self.current >= self.source.len()
-    }
-
+    
     fn scan_token(&mut self) {
         let c = self.advance();
         match c {
@@ -121,7 +118,7 @@ impl<'a> Scanner<'a> {
                         self.advance();
                     }
                     if self.is_at_end() {
-                        error::error(self.line, "Unterminated block comment.");
+                        error::report(self.line, "Unterminated block comment.");
                         return;
                     }
                     self.advance();
@@ -136,22 +133,26 @@ impl<'a> Scanner<'a> {
             c if c.is_ascii_digit() => self.number(),
             c if c.is_alphabetic() || c == '_' => self.identifier(),
             _ => {
-                error::error(self.line, &format!("Unexpected character: {}", c));
+                error::report(self.line, &format!("Unexpected character: {}", c));
             }
         }
     }
-
+    
+    fn is_at_end(&self) -> bool {
+        self.current >= self.source.len()
+    }
+    
     fn peek(&self) -> char {
         if self.is_at_end() { return '\0'; }
         self.source[self.current..].chars().next().unwrap()
     }
-
+    
     fn peek_next(&self) -> char {
         let mut chars = self.source[self.current..].chars();
         chars.next();
         chars.next().unwrap_or('\0')
     }
-
+    
     fn advance(&mut self) -> char {
         let c = self.peek();
         self.current += c.len_utf8();
@@ -194,7 +195,7 @@ impl<'a> Scanner<'a> {
         }
 
         if self.is_at_end() {
-            error::error(self.line, "Unterminated string.");
+            error::report(self.line, "Unterminated string.");
             return;
         }
 

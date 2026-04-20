@@ -1,15 +1,20 @@
 use std::env;
 use std::io::Write;
 
-mod token;
 mod error;
+mod token;
+mod expr;
 
 fn run(code: &str) {
     let scanner = token::Scanner::new(code);
     let tokens = scanner.tokenize();
-    for token in tokens {
-        println!("{:?}", token);
-    }
+    // for token in tokens {
+    //     println!("{:?}", token);
+    // }
+    let parser = expr::Parser::new(&tokens);
+    let expr = parser.parse();
+    println!("{}", expr.print());
+    println!("{:?}", expr.eval());
 }
 
 
