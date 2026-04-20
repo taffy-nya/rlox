@@ -23,44 +23,86 @@ impl Expr {
             Expr::Unary { operator, right } => format!("({} {})", operator.lexeme, right.print()),
         }
     }
-    pub fn eval(&self) -> Literal {
+    pub fn eval(&self) -> Result<Literal, String> {
         match self {
             Expr::Binary { left, operator, right } => {
                 let left_val = left.eval();
                 let right_val = right.eval();
                 match operator.token_type {
                     TokenType::Plus => match (left_val, right_val) {
-                        (Literal::Number(l), Literal::Number(r)) => Literal::Number(l + r),
-                        (Literal::String(l), Literal::String(r)) => Literal::String(l + &r),
+                        (Ok(Literal::Number(l)), Ok(Literal::Number(r))) => Ok(Literal::Number(l + r)),
+                        (Ok(Literal::String(l)), Ok(Literal::String(r))) => Ok(Literal::String(l + &r)),
                         _ => {
                             error::report_token(operator, "Operands must be two numbers or two strings.");
-                            Literal::Nil
+                            Err("Invalid operand types".into())
                         }
                     },
                     TokenType::Minus => match (left_val, right_val) {
-                        (Literal::Number(l), Literal::Number(r)) => Literal::Number(l - r),
+                        (Ok(Literal::Number(l)), Ok(Literal::Number(r))) => Ok(Literal::Number(l - r)),
                         _ => {
                             error::report_token(operator, "Operands must be numbers.");
-                            Literal::Nil
+                            Err("Invalid operand types".into())
                         }
                     },
                     TokenType::Star => match (left_val, right_val) {
-                        (Literal::Number(l), Literal::Number(r)) => Literal::Number(l * r),
+                        (Ok(Literal::Number(l)), Ok(Literal::Number(r))) => Ok(Literal::Number(l * r)),
                         _ => {
                             error::report_token(operator, "Operands must be numbers.");
-                            Literal::Nil
+                            Err("Invalid operand types".into())
                         }
                     },
                     TokenType::Slash => match (left_val, right_val) {
-                        (Literal::Number(l), Literal::Number(r)) => Literal::Number(l / r),
+                        (Ok(Literal::Number(l)), Ok(Literal::Number(r))) => Ok(Literal::Number(l / r)),
                         _ => {
                             error::report_token(operator, "Operands must be numbers.");
-                            Literal::Nil
+                            Err("Invalid operand types".into())
+                        }
+                    },
+                    TokenType::EqualEqual => match (left_val, right_val) {
+                        (Ok(l), Ok(r)) => Ok(Literal::Bool(l == r)),
+                        _ => {
+                            error::report_token(operator, "Operands must be of the same type.");
+                            Err("Invalid operand types".into())
+                        }
+                    },
+                    TokenType::BangEqual => match (left_val, right_val) {
+                        (Ok(l), Ok(r)) => Ok(Literal::Bool(l != r)),
+                        _ => {
+                            error::report_token(operator, "Operands must be of the same type.");
+                            Err("Invalid operand types".into())
+                        }
+                    },
+                    TokenType::Greater => match (left_val, right_val) {
+                        (Ok(Literal::Number(l)), Ok(Literal::Number(r))) => Ok(Literal::Bool(l > r)),
+                        _ => {
+                            error::report_token(operator, "Operands must be numbers.");
+                            Err("Invalid operand types".into())
+                        }
+                    },
+                    TokenType::GreaterEqual => match (left_val, right_val) {
+                        (Ok(Literal::Number(l)), Ok(Literal::Number(r))) => Ok(Literal::Bool(l >= r)),
+                        _ => {
+                            error::report_token(operator, "Operands must be numbers.");
+                            Err("Invalid operand types".into())
+                        }
+                    },
+                    TokenType::Less => match (left_val, right_val) {
+                        (Ok(Literal::Number(l)), Ok(Literal::Number(r))) => Ok(Literal::Bool(l < r)),
+                        _ => {
+                            error::report_token(operator, "Operands must be numbers.");
+                            Err("Invalid operand types".into())
+                        }
+                    },
+                    TokenType::LessEqual => match (left_val, right_val) {
+                        (Ok(Literal::Number(l)), Ok(Literal::Number(r))) => Ok(Literal::Bool(l <= r)),
+                        _ => {
+                            error::report_token(operator, "Operands must be numbers.");
+                            Err("Invalid operand types".into())
                         }
                     },
                     _ => {
                         error::report_token(operator, "Unknown operator.");
-                        Literal::Nil
+                        Err("Unknown operator".into())
                     }
                 }
             }
@@ -68,38 +110,36 @@ impl Expr {
                 let right_val = right.eval();
                 match operator.token_type {
                     TokenType::Minus => match right_val {
-                        Literal::Number(n) => Literal::Number(-n),
+                        Ok(Literal::Number(n)) => Ok(Literal::Number(-n)),
                         _ => {
                             error::report_token(operator, "Operand must be a number.");
-                            Literal::Nil
+                            Err("Invalid operand type".into())
                         }
                     },
                     TokenType::Bang => match right_val {
-                        Literal::Bool(b) => Literal::Bool(!b),
-                        _ => {
-                            error::report_token(operator, "Operand must be a boolean.");
-                            Literal::Nil
-                        }
+                        Ok(Literal::Bool(b)) => Ok(Literal::Bool(!b)),
+                        Ok(Literal::Nil) => Ok(Literal::Bool(true)),
+                        _ => Ok(Literal::Bool(false))
                     },
                     _ => {
                         error::report_token(operator, "Unknown operator.");
-                        Literal::Nil
+                        Err("Unknown operator".into())
                     }
                 }
             }
             Expr::Grouping { expression } => expression.eval(),
-            Expr::Literal { value } => value.clone(),
+            Expr::Literal { value } => Ok(value.clone()),
         }
     }
 }
 
 pub struct Parser<'a> {
-    tokens: &'a Vec<Token>,
+    tokens: &'a [Token],
     current: usize,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: &'a Vec<Token>) -> Self {
+    pub fn new(tokens: &'a [Token]) -> Self {
         Self { tokens, current: 0 }
     }
 
@@ -126,19 +166,12 @@ impl<'a> Parser<'a> {
         &self.tokens[self.current]
     }
 
-    fn check_type(&self, token_type: &TokenType) -> bool {
-        if self.is_at_end() { return false; }
-        self.peek().token_type == *token_type
-    }
-
-    fn match_type(&mut self, types: &[TokenType]) -> bool {
-        for token_type in types {
-            if self.check_type(token_type) {
-                self.advance();
-                return true;
-            }
+    fn match_type(&mut self, types: &[TokenType]) -> Option<Token> {
+        if types.contains(&self.peek().token_type) {
+            return Some(self.advance().clone());
+        } else {
+            None
         }
-        false
     }
     
     /// expression -> equality
@@ -150,8 +183,7 @@ impl<'a> Parser<'a> {
     fn equality(&mut self) -> Expr {
         let mut expr = self.comparison();
         
-        while self.match_type(&[TokenType::BangEqual, TokenType::EqualEqual]) {
-            let operator = self.previous().clone();
+        while let Some(operator) = self.match_type(&[TokenType::BangEqual, TokenType::EqualEqual]) {
             let right = self.comparison();
             expr = Expr::Binary {
                 left: Box::new(expr), operator, right: Box::new(right)
@@ -164,11 +196,10 @@ impl<'a> Parser<'a> {
     fn comparison(&mut self) -> Expr {
         let mut expr = self.term();
 
-        while self.match_type(&[
+        while let Some(operator) = self.match_type(&[
             TokenType::Greater, TokenType::GreaterEqual,
             TokenType::Less, TokenType::LessEqual,
         ]) {
-            let operator = self.previous().clone();
             let right = self.term();
             expr = Expr::Binary {
                 left: Box::new(expr), operator, right: Box::new(right)
@@ -181,8 +212,7 @@ impl<'a> Parser<'a> {
     fn term(&mut self) -> Expr {
         let mut expr = self.factor();
 
-        while self.match_type(&[TokenType::Minus, TokenType::Plus]) {
-            let operator = self.previous().clone();
+        while let Some(operator) = self.match_type(&[TokenType::Minus, TokenType::Plus]) {
             let right = self.factor();
             expr = Expr::Binary {
                 left: Box::new(expr), operator, right: Box::new(right)
@@ -195,8 +225,7 @@ impl<'a> Parser<'a> {
     fn factor(&mut self) -> Expr {
         let mut expr = self.unary();
 
-        while self.match_type(&[TokenType::Slash, TokenType::Star]) {
-            let operator = self.previous().clone();
+        while let Some(operator) = self.match_type(&[TokenType::Slash, TokenType::Star]) {
             let right = self.unary();
             expr = Expr::Binary {
                 left: Box::new(expr), operator, right: Box::new(right)
@@ -207,8 +236,7 @@ impl<'a> Parser<'a> {
 
     /// unary -> ( "!" | "-" ) unary | primary
     fn unary(&mut self) -> Expr {
-        if self.match_type(&[TokenType::Bang, TokenType::Minus]) {
-            let operator = self.previous().clone();
+        if let Some(operator) = self.match_type(&[TokenType::Bang, TokenType::Minus]) {
             let right = self.unary();
             return Expr::Unary { operator, right: Box::new(right) };
         }
@@ -217,19 +245,19 @@ impl<'a> Parser<'a> {
 
     /// primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")"
     fn primary(&mut self) -> Expr {
-        if self.match_type(&[TokenType::False]) {
+        if self.match_type(&[TokenType::False]).is_some() {
             return Expr::Literal { value: Literal::Bool(false) };
         }
-        if self.match_type(&[TokenType::True]) {
+        if self.match_type(&[TokenType::True]).is_some() {
             return Expr::Literal { value: Literal::Bool(true) };
         }
-        if self.match_type(&[TokenType::Nil]) {
+        if self.match_type(&[TokenType::Nil]).is_some() {
             return Expr::Literal { value: Literal::Nil };
         }
-        if self.match_type(&[TokenType::Number, TokenType::String]) {
+        if self.match_type(&[TokenType::Number, TokenType::String]).is_some() {
             return Expr::Literal { value: self.previous().literal.clone().unwrap() };
         }
-        if self.match_type(&[TokenType::LeftParen]) {
+        if self.match_type(&[TokenType::LeftParen]).is_some() {
             let expr = self.expression();
             self.consume(TokenType::RightParen, "Expect ')' after expression.");
             return Expr::Grouping { expression: Box::new(expr) };
@@ -240,8 +268,7 @@ impl<'a> Parser<'a> {
     }
 
     fn consume(&mut self, token_type: TokenType, message: &str) {
-        if self.check_type(&token_type) {
-            self.advance();
+        if self.match_type(&[token_type]).is_some() {
             return;
         }
         error::report_token(self.peek(), message);
@@ -252,3 +279,94 @@ impl<'a> Parser<'a> {
     // }
 
 } 
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use super::*;
+    use crate::error;
+    use crate::token::Scanner;
+
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    fn parse(source: &str) -> Expr {
+        let tokens = Scanner::new(source).tokenize();
+        Parser::new(&tokens).parse()
+    }
+
+    fn eval(source: &str) -> Result<Literal, String> {
+        parse(source).eval()
+    }
+
+    #[test]
+    fn evaluates_arithmetic_precedence() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        error::reset_had_error();
+
+        assert_eq!(eval("1 + 2 * 3"), Ok(Literal::Number(7.0)));
+        assert!(!error::had_error());
+    }
+
+    #[test]
+    fn evaluates_grouping() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        error::reset_had_error();
+
+        assert_eq!(eval("(1 + 2) * 3"), Ok(Literal::Number(9.0)));
+        assert!(!error::had_error());
+    }
+
+    #[test]
+    fn evaluates_equality_and_comparison() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        error::reset_had_error();
+
+        assert_eq!(eval("1 + 2 * 3 == 7"), Ok(Literal::Bool(true)));
+        assert_eq!(eval("3 < 2 == false"), Ok(Literal::Bool(true)));
+        assert_eq!(eval("nil == nil"), Ok(Literal::Bool(true)));
+        assert!(!error::had_error());
+    }
+
+    #[test]
+    fn evaluates_truthiness() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        error::reset_had_error();
+
+        assert_eq!(eval("!false"), Ok(Literal::Bool(true)));
+        assert_eq!(eval("!nil"), Ok(Literal::Bool(true)));
+        assert_eq!(eval("!123"), Ok(Literal::Bool(false)));
+        assert!(!error::had_error());
+    }
+
+    #[test]
+    fn reports_runtime_type_error() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        error::reset_had_error();
+
+        assert!(eval("1 + \"x\"").is_err());
+        assert!(error::had_error());
+    }
+
+    #[test]
+    fn reports_parse_error_for_missing_operand() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        error::reset_had_error();
+
+        let expr = parse("1 +");
+
+        assert_eq!(expr.print(), "(+ 1 nil)");
+        assert!(error::had_error());
+    }
+
+    #[test]
+    fn reports_parse_error_for_missing_right_paren() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        error::reset_had_error();
+
+        let expr = parse("(1 + 2");
+
+        assert_eq!(expr.print(), "(group (+ 1 2))");
+        assert!(error::had_error());
+    }
+}

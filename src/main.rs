@@ -13,8 +13,11 @@ fn run(code: &str) {
     // }
     let parser = expr::Parser::new(&tokens);
     let expr = parser.parse();
-    println!("{}", expr.print());
-    println!("{:?}", expr.eval());
+    println!("AST = {}", expr.print());
+    match expr.eval() {
+        Ok(value) => println!("= {:?}", value),
+        Err(e) => eprintln!("Evaluation error: {}", e),
+    }
 }
 
 
