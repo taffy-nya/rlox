@@ -25,7 +25,7 @@ fn run(code: &str) {
         return;
     };
 
-    println!("= {:?}", value);
+    println!("= {}", value);
 }
 
 

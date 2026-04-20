@@ -15,12 +15,7 @@ impl Expr {
         match self {
             Expr::Binary { left, operator, right } => format!("({} {} {})", operator.lexeme, left.print(), right.print()),
             Expr::Grouping { expression } => format!("(group {})", expression.print()),
-            Expr::Literal { value } => match value {
-                Literal::Number(n) => n.to_string(),
-                Literal::String(s) => s.clone(),
-                Literal::Bool(b) => b.to_string(),
-                Literal::Nil => "nil".to_string(),
-            },
+            Expr::Literal { value } => value.to_string(),
             Expr::Unary { operator, right } => format!("({} {})", operator.lexeme, right.print()),
         }
     }

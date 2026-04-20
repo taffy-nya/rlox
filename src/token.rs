@@ -1,4 +1,5 @@
 use crate::error;
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
@@ -28,6 +29,17 @@ pub enum Literal {
     String(String),
     Bool(bool),
     Nil,
+}
+
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Literal::Number(n) => write!(f, "{n}"),
+            Literal::String(s) => write!(f, "{s}"),
+            Literal::Bool(b) => write!(f, "{b}"),
+            Literal::Nil => write!(f, "nil"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
