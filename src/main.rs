@@ -8,16 +8,24 @@ mod expr;
 fn run(code: &str) {
     let scanner = token::Scanner::new(code);
     let tokens = scanner.tokenize();
+    if error::had_error() {
+        return;
+    }
     // for token in tokens {
     //     println!("{:?}", token);
     // }
     let parser = expr::Parser::new(&tokens);
-    let expr = parser.parse();
+    let Ok(expr) = parser.parse() else {
+        return;
+    };
+
     println!("AST = {}", expr.print());
-    match expr.eval() {
-        Ok(value) => println!("= {:?}", value),
-        Err(e) => eprintln!("Evaluation error: {}", e),
-    }
+
+    let Ok(value) = expr.eval() else {
+        return;
+    };
+
+    println!("= {:?}", value);
 }
 
 
@@ -36,7 +44,7 @@ fn run_prompt() {
         print!("> ");
         std::io::stdout().flush().unwrap();
         if std::io::stdin().read_line(&mut code).expect("Failed to read line") == 0 { break; }
-        run(code.as_str());
+        run(code.trim_end());
         error::reset_had_error();
     }
 }

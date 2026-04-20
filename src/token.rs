@@ -118,7 +118,7 @@ impl<'a> Scanner<'a> {
                         self.advance();
                     }
                     if self.is_at_end() {
-                        error::report(self.line, "Unterminated block comment.");
+                        error::report("Syntax error", self.line, "Unterminated block comment.");
                         return;
                     }
                     self.advance();
@@ -133,7 +133,7 @@ impl<'a> Scanner<'a> {
             c if c.is_ascii_digit() => self.number(),
             c if c.is_alphabetic() || c == '_' => self.identifier(),
             _ => {
-                error::report(self.line, &format!("Unexpected character: {}", c));
+                error::report("Syntax error", self.line, &format!("Unexpected character: {}", c));
             }
         }
     }
@@ -195,7 +195,7 @@ impl<'a> Scanner<'a> {
         }
 
         if self.is_at_end() {
-            error::report(self.line, "Unterminated string.");
+            error::report("Syntax error", self.line, "Unterminated string.");
             return;
         }
 

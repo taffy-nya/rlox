@@ -15,20 +15,26 @@ pub fn had_error() -> bool {
     HAD_ERROR.load(Ordering::Relaxed)
 }
 
-pub fn report(line: usize, message: &str) {
-    eprintln!("Error on line {}: {}", line, message);
+pub fn report(error: &str, line: usize, message: &str) {
+    eprintln!("{} on line {}: {}", error, line, message);
     set_had_error();
 }
 
-pub fn report_at(line: usize, at: &str, message: &str) {
-    eprintln!("Error on line {} {}: {}", line, at, message);
+pub fn report_at(error: &str, line: usize, at: &str, message: &str) {
+    eprintln!("{} on line {} {}: {}", error, line, at, message);
     set_had_error();
 }
 
-pub fn report_token(token: &Token, message: &str) {
+pub fn report_token(error: &str, token: &Token, message: &str) {
     match token.token_type {
-        TokenType::Eof => report_at(token.line, "at end", message),
-        _ => report_at(token.line, &format!("at '{}'", token.lexeme), message),
+        TokenType::Eof => report_at(error, token.line, "at end", message),
+        _ => report_at(error, token.line, &format!("at '{}'", token.lexeme), message),
     }
     set_had_error();
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EvalError;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParseError;
