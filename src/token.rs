@@ -36,6 +36,7 @@ pub struct Token {
     pub lexeme: String,
     pub literal: Option<Literal>,
     pub line: usize,
+    pub column: usize,
 }
 
 pub struct Scanner<'a> {
@@ -44,6 +45,9 @@ pub struct Scanner<'a> {
     start: usize,
     current: usize,
     line: usize,
+    column: usize,
+    start_line: usize,
+    start_column: usize,
 }
 
 impl<'a> Scanner<'a> {
@@ -54,12 +58,17 @@ impl<'a> Scanner<'a> {
             start: 0,
             current: 0,
             line: 1,
+            column: 1,
+            start_line: 1,
+            start_column: 1,
         }
     }
 
     pub fn tokenize(mut self) -> Vec<Token> {
         while !self.is_at_end() {
             self.start = self.current;
+            self.start_line = self.line;
+            self.start_column = self.column;
             self.scan_token();
         }
 
@@ -67,13 +76,13 @@ impl<'a> Scanner<'a> {
             token_type: TokenType::Eof,
             lexeme: String::new(),
             literal: None,
-            line: self.line,
+            line: self.start_line,
+            column: self.start_column,
         });
 
         self.tokens
     }
 
-    
     fn scan_token(&mut self) {
         let c = self.advance();
         match c {
@@ -112,13 +121,10 @@ impl<'a> Scanner<'a> {
                 } else if self.match_char('*') {
                     /* ... */
                     while !(self.peek() == '*' && self.peek_next() == '/') && !self.is_at_end() {
-                        if self.peek() == '\n' {
-                            self.line += 1;
-                        }
                         self.advance();
                     }
                     if self.is_at_end() {
-                        error::report("Syntax error", self.line, "Unterminated block comment.");
+                        self.syntax_error("Unterminated block comment.");
                         return;
                     }
                     self.advance();
@@ -127,15 +133,18 @@ impl<'a> Scanner<'a> {
                     self.add_token(TokenType::Slash);
                 }
             }
-            ' ' | '\r' | '\t' => {},
-            '\n' => self.line += 1,
+            ' ' | '\r' | '\t' | '\n' => {},
             '"' => self.string(),
             c if c.is_ascii_digit() => self.number(),
             c if c.is_alphabetic() || c == '_' => self.identifier(),
             _ => {
-                error::report("Syntax error", self.line, &format!("Unexpected character: {}", c));
+                self.syntax_error(&format!("Unexpected character: {}", c));
             }
         }
+    }
+
+    fn syntax_error(&self, message: &str) {
+        error::report("Syntax error", self.line, self.column, message);
     }
     
     fn is_at_end(&self) -> bool {
@@ -156,6 +165,12 @@ impl<'a> Scanner<'a> {
     fn advance(&mut self) -> char {
         let c = self.peek();
         self.current += c.len_utf8();
+        if c == '\n' {
+            self.line += 1;
+            self.column = 1;
+        } else {
+            self.column += 1;
+        }
         c
     }
 
@@ -165,7 +180,8 @@ impl<'a> Scanner<'a> {
             token_type,
             lexeme: text.to_string(),
             literal: None,
-            line: self.line,
+            line: self.start_line,
+            column: self.start_column,
         });
     }
 
@@ -175,27 +191,24 @@ impl<'a> Scanner<'a> {
             token_type,
             lexeme: text.to_string(),
             literal: Some(literal),
-            line: self.line,
+            line: self.start_line,
+            column: self.start_column,
         });
     }
 
     fn match_char(&mut self, expected: char) -> bool {
-        if self.is_at_end() { return false }
         if self.peek() != expected { return false; }
-        self.current += expected.len_utf8();
+        self.advance();
         true
     }
 
     fn string(&mut self) {
         while self.peek() != '"' && !self.is_at_end() {
-            if self.peek() == '\n' {
-                self.line += 1;
-            }
             self.advance();
         }
 
         if self.is_at_end() {
-            error::report("Syntax error", self.line, "Unterminated string.");
+            self.syntax_error("Unterminated string.");
             return;
         }
 
