@@ -39,13 +39,24 @@ fn run_file(path: &String) {
 }
 
 fn run_prompt() {
+    let mut code = String::new();
     loop {
-        let mut code = String::new();
-        print!("> ");
+        print!("{}", if code.is_empty() { "> " } else { "| " });
         std::io::stdout().flush().unwrap();
-        if std::io::stdin().read_line(&mut code).expect("Failed to read line") == 0 { break; }
-        run(code.trim_end());
-        error::reset_had_error();
+        let mut line = String::new();
+        if std::io::stdin().read_line(&mut line).expect("Failed to read line") == 0 { break; }
+        let line = line.trim_end_matches(['\r', '\n']);
+
+        if line.ends_with('\\') {
+            code.push_str(line.trim_end_matches('\\'));
+            code.push('\n');
+            continue;
+        } else {
+            code.push_str(line);
+            run(code.as_str());
+            code.clear();
+            error::reset_had_error();
+        }
     }
 }
 fn main() {
