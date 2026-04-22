@@ -8,6 +8,7 @@ pub enum Stmt {
     Expression { expression: Expr },
     Print { expression: Expr },
     Var { name: Token, initializer: Expr },
+    Block { statements: Vec<Stmt> },
 }
 
 impl Stmt {
@@ -24,8 +25,14 @@ impl Stmt {
             },
             Stmt::Var { name, initializer } => {
                 let val = initializer.eval(env)?;
-                env.define(&name.lexeme, val);
+                env.define(name.lexeme.clone(), val);
                 Ok(())
+            }
+            Stmt::Block { statements } => {
+                env.new_scope();
+                let res = statements.iter().try_for_each(|stmt| stmt.exec(env));
+                env.end_scope();
+                res
             }
         }
     }

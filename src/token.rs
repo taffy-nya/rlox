@@ -132,7 +132,7 @@ impl<'a> Scanner<'a> {
                     }
                 } else if self.match_char('*') {
                     /* ... */
-                    while !(self.peek() == '*' && self.peek_next() == '/') && !self.is_at_end() {
+                    while !(self.is_at_end() || self.peek() == '*' && self.peek_next() == '/') {
                         self.advance();
                     }
                     if self.is_at_end() {

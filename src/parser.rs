@@ -45,8 +45,16 @@ impl<'a> Parser<'a> {
         &self.tokens[self.current]
     }
 
+    fn check_type(&self, token_type: &TokenType) -> bool {
+        !self.is_at_end() && self.peek().token_type == *token_type
+    }
+
+    fn check_types(&self, types: &[TokenType]) -> bool {
+        !self.is_at_end() && types.contains(&self.peek().token_type)
+    }
+
     fn consume(&mut self, token_type: TokenType, msg: &str) -> Result<&Token, ParseError> {
-        if self.peek().token_type == token_type {
+        if self.check_type(&token_type) {
             Ok(self.advance())
         } else {
             self.parse_error(msg)
@@ -54,7 +62,7 @@ impl<'a> Parser<'a> {
     }
     
     fn match_type(&mut self, types: &[TokenType]) -> Option<Token> {
-        if types.contains(&self.peek().token_type) {
+        if self.check_types(types) {
             Some(self.advance().clone())
         } else {
             None
@@ -87,15 +95,17 @@ impl<'a> Parser<'a> {
             self.expression()?
         } else {
             Expr::Literal { value: Literal::Nil }
-        }; 
+        };
         self.consume(TokenType::Semicolon, "Expect ';' after variable declaration.")?;
         Ok(Stmt::Var { name, initializer })
     }
 
-    /// statement -> exprstmt | printstmt
+    /// statement -> exprstmt | printstmt | block
     fn statement(&mut self) -> Result<Stmt, ParseError> {
         if self.match_type(&[TokenType::Print]).is_some() {
             self.print_statement()
+        } else if self.match_type(&[TokenType::LeftBrace]).is_some() {
+            self.block()
         } else {
             self.expression_statement()
         }
@@ -113,6 +123,16 @@ impl<'a> Parser<'a> {
         let expr = self.expression()?;
         self.consume(TokenType::Semicolon, "Expect ';' after value.")?;
         Ok(Stmt::Print { expression: expr })
+    }
+
+    /// block -> "{" declaration* "}"
+    fn block(&mut self) -> Result<Stmt, ParseError> {
+        let mut stmts = Vec::new();
+        while !self.check_type(&TokenType::RightBrace) && !self.is_at_end() {
+            stmts.push(self.declaration()?);
+        }
+        self.consume(TokenType::RightBrace, "Expect '}' after block.")?;
+        Ok(Stmt::Block { statements: stmts })
     }
 
     /// expression -> assignment
@@ -228,17 +248,16 @@ impl<'a> Parser<'a> {
                 return;
             }
 
-            if matches!(
-                self.peek().token_type,
-                TokenType::Class
-                    | TokenType::Fun
-                    | TokenType::Var
-                    | TokenType::For
-                    | TokenType::If
-                    | TokenType::While
-                    | TokenType::Print
-                    | TokenType::Return
-            ) {
+            if self.check_types(&[
+                TokenType::Class,
+                TokenType::Fun,
+                TokenType::Var,
+                TokenType::For,
+                TokenType::If,
+                TokenType::While,
+                TokenType::Print,
+                TokenType::Return,
+            ]) {
                 return;
             }
 

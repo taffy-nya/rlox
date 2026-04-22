@@ -5,29 +5,45 @@ use std::collections::HashMap;
 use crate::token::Literal;
 
 pub struct Environment {
-    values: HashMap<String, Literal>,
+    scopes: Vec<HashMap<String, Literal>>,
 }
 
 impl Environment {
     pub fn new() -> Self {
-        Self { values: HashMap::new() }
+        Self {
+            scopes: vec![HashMap::new()],
+        }
     }
 
-    pub fn define(&mut self, name: &str, value: Literal) {
-        self.values.insert(name.to_string(), value);
+    pub fn new_scope(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    pub fn end_scope(&mut self) {
+        self.scopes.pop();
+    }
+
+    pub fn define(&mut self, name: String, value: Literal) {
+        self.scopes.last_mut().unwrap().insert(name, value);
     }
 
     pub fn get(&self, name: &str) -> Result<Literal, EvalError> {
-        self.values.get(name).cloned().ok_or(EvalError)
+        for scope in self.scopes.iter().rev() {
+            if let Some(val) = scope.get(name) {
+                return Ok(val.clone());
+            }
+        }
+        Err(EvalError)
     }
 
     pub fn assign(&mut self, name: &str, value: Literal) -> Result<(), EvalError> {
-        if self.values.contains_key(name) {
-            self.values.insert(name.to_string(), value);
-            Ok(())
-        } else {
-            Err(EvalError)
+        for scope in self.scopes.iter_mut().rev() {
+            if scope.contains_key(name) {
+                scope.insert(name.to_string(), value);
+                return Ok(());
+            }
         }
+        Err(EvalError)
     }
 }
 
