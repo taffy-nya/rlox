@@ -4,34 +4,27 @@ use std::io::Write;
 mod error;
 mod token;
 mod expr;
+mod parser;
+mod stmt;
+mod interpreter;
 
-fn run(code: &str) {
+fn run(code: &str, interpreter: &mut interpreter::Interpreter) {
     let scanner = token::Scanner::new(code);
     let tokens = scanner.tokenize();
-    if error::had_error() {
-        return;
-    }
-    // for token in tokens {
-    //     println!("{:?}", token);
-    // }
-    let parser = expr::Parser::new(&tokens);
-    let Ok(expr) = parser.parse() else {
-        return;
-    };
+    if error::had_error() { return; }
 
-    println!("AST = {}", expr.print());
-
-    let Ok(value) = expr.eval() else {
-        return;
-    };
-
-    println!("= {}", value);
+    let parser = parser::Parser::new(&tokens);
+    let stmts = parser.parse();
+    if error::had_error() { return; }
+    
+    interpreter.work(&stmts);
 }
 
 
 fn run_file(path: &String) {
     let code = std::fs::read_to_string(path).expect("Failed to read file");
-    run(code.as_str());
+    let mut interpreter = interpreter::Interpreter::new();
+    run(code.as_str(), &mut interpreter);
 
     if error::had_error() {
         std::process::exit(1);
@@ -40,6 +33,7 @@ fn run_file(path: &String) {
 
 fn run_prompt() {
     let mut code = String::new();
+    let mut interpreter = interpreter::Interpreter::new();
     loop {
         print!("{}", if code.is_empty() { "> " } else { "| " });
         std::io::stdout().flush().unwrap();
@@ -53,7 +47,7 @@ fn run_prompt() {
             continue;
         } else {
             code.push_str(line);
-            run(code.as_str());
+            run(code.as_str(), &mut interpreter);
             code.clear();
             error::reset_had_error();
         }

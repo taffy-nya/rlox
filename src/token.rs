@@ -256,11 +256,11 @@ impl<'a> Scanner<'a> {
         let text = &self.source[self.start..self.current];
         let token_type = match text {
             "and" => TokenType::And,
-            "class" => TokenType::Class,
+            "class" | "struct" => TokenType::Class,
             "else" => TokenType::Else,
             "false" => TokenType::False,
             "for" => TokenType::For,
-            "fun" => TokenType::Fun,
+            "fun" | "fn" => TokenType::Fun,
             "if" => TokenType::If,
             "nil" => TokenType::Nil,
             "or" => TokenType::Or,
@@ -269,7 +269,7 @@ impl<'a> Scanner<'a> {
             "super" => TokenType::Super,
             "this" => TokenType::This,
             "true" => TokenType::True,
-            "var" => TokenType::Var,
+            "var" | "let" => TokenType::Var,
             "while" => TokenType::While,
             _ => TokenType::Identifier
         };
