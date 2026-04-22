@@ -1,4 +1,3 @@
-use crate::error;
 use crate::error::ParseError;
 use crate::expr::Expr;
 use crate::token::{Token, TokenType, Literal};
@@ -15,15 +14,23 @@ impl<'a> Parser<'a> {
     }
 
     // program -> declaration* EOF
-    pub fn parse(mut self) -> Vec<Stmt> {
+    pub fn parse(mut self) -> Result<Vec<Stmt>, Vec<ParseError>> {
         let mut stmts = Vec::new();
+        let mut errors = Vec::new();
         while !self.is_at_end() {
             match self.declaration() {
                 Ok(stmt) => stmts.push(stmt),
-                Err(_) => self.synchronize(),
+                Err(error) => {
+                    errors.push(error);
+                    self.synchronize();
+                }
             }
         }
-        stmts
+        if errors.is_empty() {
+            Ok(stmts)
+        } else {
+            Err(errors)
+        }
     }
 
     fn advance(&mut self) -> &Token {
@@ -70,13 +77,11 @@ impl<'a> Parser<'a> {
     }
     
     fn parse_error<T>(&self, message: &str) -> Result<T, ParseError> {
-        error::report_token("Parse error", self.peek(), message);
-        Err(ParseError)
+        Err(ParseError::new(self.peek(), message))
     }
 
     fn parse_error_at(&self, token: &Token, message: &str) -> Result<(), ParseError> {
-        error::report_token("Parse error", token, message);
-        Err(ParseError)
+        Err(ParseError::new(token, message))
     }
     
     /// declaration -> varDecl | statement

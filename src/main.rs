@@ -8,25 +8,47 @@ mod parser;
 mod stmt;
 mod interpreter;
 
-fn run(code: &str, interpreter: &mut interpreter::Interpreter) {
+fn run(code: &str, interpreter: &mut interpreter::Interpreter) -> bool {
     let scanner = token::Scanner::new(code);
-    let tokens = scanner.tokenize();
-    if error::had_error() { return; }
+
+    let tokens = match scanner.tokenize() {
+        Ok(tokens) => tokens,
+        Err(errors) => {
+            for error in errors {
+                eprintln!("{error}");
+            }
+            return false;
+        }
+    };
 
     let parser = parser::Parser::new(&tokens);
-    let stmts = parser.parse();
-    if error::had_error() { return; }
-    
-    interpreter.work(&stmts);
-}
 
+    let stmts = match parser.parse() {
+        Ok(stmts) => stmts,
+        Err(errors) => {
+            for error in errors {
+                eprintln!("{error}");
+            }
+            return false;
+        }
+    };
+
+    match interpreter.work(&stmts) {
+        Ok(_) => true,
+        Err(errors) => {
+            for error in errors {
+                eprintln!("{error}");
+            }
+            false
+        }
+    }
+}
 
 fn run_file(path: &String) {
     let code = std::fs::read_to_string(path).expect("Failed to read file");
     let mut interpreter = interpreter::Interpreter::new();
-    run(code.as_str(), &mut interpreter);
 
-    if error::had_error() {
+    if !run(code.as_str(), &mut interpreter) {
         std::process::exit(1);
     }
 }
@@ -83,7 +105,6 @@ fn run_prompt() {
 
         if !code.trim().is_empty() {
             run(code.as_str(), &mut interpreter);
-            error::reset_had_error();
         }
 
         code.clear();

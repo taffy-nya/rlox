@@ -1,5 +1,4 @@
-use crate::stmt::Stmt;
-use crate::error::EvalError;
+use crate::{error::EvalError, stmt::Stmt};
 
 use std::collections::HashMap;
 use crate::token::Literal;
@@ -27,23 +26,23 @@ impl Environment {
         self.scopes.last_mut().unwrap().insert(name, value);
     }
 
-    pub fn get(&self, name: &str) -> Result<Literal, EvalError> {
+    pub fn get(&self, name: &str) -> Option<Literal> {
         for scope in self.scopes.iter().rev() {
             if let Some(val) = scope.get(name) {
-                return Ok(val.clone());
+                return Some(val.clone());
             }
         }
-        Err(EvalError)
+        None
     }
 
-    pub fn assign(&mut self, name: &str, value: Literal) -> Result<(), EvalError> {
+    pub fn assign(&mut self, name: &str, value: Literal) -> Option<()> {
         for scope in self.scopes.iter_mut().rev() {
             if scope.contains_key(name) {
                 scope.insert(name.to_string(), value);
-                return Ok(());
+                return Some(());
             }
         }
-        Err(EvalError)
+        None
     }
 }
 
@@ -57,11 +56,19 @@ impl Interpreter {
             env: Environment::new(),
         }
     }
-    pub fn work(&mut self, stmts: &[Stmt]) {
+    pub fn work(&mut self, stmts: &[Stmt]) -> Result<(), Vec<EvalError>> {
+        let mut errors = Vec::new();
+
         for stmt in stmts {
-            if let Err(_) = stmt.exec(&mut self.env) {
-                // Handle error (e.g., print it)
+            if let Err(err) = stmt.exec(&mut self.env) {
+                errors.push(err);
             }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
         }
     }
 }

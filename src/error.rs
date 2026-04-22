@@ -1,40 +1,97 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::fmt;
 use crate::token::{Token, TokenType};
 
-static HAD_ERROR: AtomicBool = AtomicBool::new(false);
-
-pub fn set_had_error() {
-    HAD_ERROR.store(true, Ordering::Relaxed);
+#[derive(Debug, Clone, PartialEq)]
+pub struct EvalError {
+    pub token: Token,
+    pub message: String,
 }
 
-pub fn reset_had_error() {
-    HAD_ERROR.store(false, Ordering::Relaxed);
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParseError {
+    pub token: Token,
+    pub message: String,
 }
 
-pub fn had_error() -> bool { 
-    HAD_ERROR.load(Ordering::Relaxed)
+pub struct SyntaxError {
+    pub line: usize,
+    pub column: usize,
+    pub lexeme: String,
+    pub message: String,
 }
 
-pub fn report(error: &str, line: usize, column: usize, message: &str) {
-    eprintln!("{} on line {}:{}: {}", error, line, column, message);
-    set_had_error();
-}
-
-pub fn report_at(error: &str, line: usize, column: usize, at: &str, message: &str) {
-    eprintln!("{} on line {}:{} {}: {}", error, line, column, at, message);
-    set_had_error();
-}
-
-pub fn report_token(error: &str, token: &Token, message: &str) {
-    match token.token_type {
-        TokenType::Eof => report_at(error, token.line, token.column, "at end", message),
-        _ => report_at(error, token.line, token.column, &format!("at '{}'", token.lexeme), message),
+impl EvalError {
+    pub fn new(token: &Token, message: &str) -> Self {
+        Self {
+            token: token.clone(),
+            message: message.to_string(),
+        }
     }
-    set_had_error();
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct EvalError;
+impl ParseError {
+    pub fn new(token: &Token, message: &str) -> Self {
+        Self {
+            token: token.clone(),
+            message: message.to_string(),
+        }
+    }
+}
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ParseError;
+impl SyntaxError {
+    pub fn new(line: usize, column: usize, lexeme: String, message: &str) -> Self {
+        Self {
+            line,
+            column,
+            lexeme,
+            message: message.to_string(),
+        }
+    }
+}
+
+fn format_token_location(token: &Token) -> String {
+    match token.token_type {
+        TokenType::Eof => format!("line {}:{} at end", token.line, token.column),
+        _ => format!("line {}:{} at '{}'", token.line, token.column, token.lexeme),
+    }
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Parse error on {}: {}",
+            format_token_location(&self.token),
+            self.message
+        )
+    }
+}
+
+impl fmt::Display for EvalError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Evaluation error on {}: {}",
+            format_token_location(&self.token),
+            self.message
+        )
+    }
+}
+
+impl fmt::Display for SyntaxError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.lexeme.is_empty() {
+            write!(
+                f,
+                "Syntax error on line {}:{}: {}",
+                self.line, self.column, self.message
+            )
+        } else {
+            write!(
+                f,
+                "Syntax error on line {}:{} at '{}': {}",
+                self.line, self.column, self.lexeme, self.message
+            )
+        }
+    }
+}

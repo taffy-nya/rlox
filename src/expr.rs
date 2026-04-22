@@ -1,5 +1,4 @@
 use crate::token::{Literal, TokenType, Token};
-use crate::error;
 use crate::error::EvalError;
 use crate::interpreter::Environment;
 
@@ -15,8 +14,7 @@ pub enum Expr {
 
 impl Expr {
     fn eval_error(&self, token: &Token, message: &str) -> Result<Literal, EvalError> {
-        error::report_token("Evaluation error", token, message);
-        Err(EvalError)
+        Err(EvalError::new(token, message))
     }
 
     pub fn eval(&self, env: &mut Environment) -> Result<Literal, EvalError> {
@@ -87,14 +85,14 @@ impl Expr {
             Expr::Grouping { expression } => expression.eval(env),
             Expr::Literal { value } => Ok(value.clone()),
             Expr::Variable { name } => match env.get(&name.lexeme) {
-                Ok(val) => Ok(val.clone()),
-                Err(_) => self.eval_error(name, "Undefined variable.")
+                Some(val) => Ok(val.clone()),
+                None => self.eval_error(name, "Undefined variable.")
             }
             Expr::Assign { name, value } => {
                 let value = value.eval(env)?;
                 match env.assign(&name.lexeme, value.clone()) {
-                    Ok(_) => Ok(value),
-                    Err(_) => self.eval_error(name, "Undefined variable.")
+                    Some(_) => Ok(value),
+                    None => self.eval_error(name, "Undefined variable.")
                 }
             }
         }

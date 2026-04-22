@@ -1,5 +1,5 @@
-use crate::error;
 use std::fmt;
+use crate::error::SyntaxError;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
@@ -54,6 +54,7 @@ pub struct Token {
 pub struct Scanner<'a> {
     source: &'a str,
     tokens: Vec<Token>,
+    errors: Vec<SyntaxError>,
     start: usize,
     current: usize,
     line: usize,
@@ -67,6 +68,7 @@ impl<'a> Scanner<'a> {
         Scanner {
             source,
             tokens: Vec::new(),
+            errors: Vec::new(),
             start: 0,
             current: 0,
             line: 1,
@@ -76,7 +78,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    pub fn tokenize(mut self) -> Vec<Token> {
+    pub fn tokenize(mut self) -> Result<Vec<Token>, Vec<SyntaxError>> {
         while !self.is_at_end() {
             self.start = self.current;
             self.start_line = self.line;
@@ -92,7 +94,11 @@ impl<'a> Scanner<'a> {
             column: self.start_column,
         });
 
-        self.tokens
+        if self.errors.is_empty() {
+            Ok(self.tokens)
+        } else {
+            Err(self.errors)
+        }
     }
 
     fn scan_token(&mut self) {
@@ -155,8 +161,9 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn syntax_error(&self, message: &str) {
-        error::report("Syntax error", self.line, self.column, message);
+    fn syntax_error(&mut self, message: &str) {
+        let lexeme = &self.source[self.start..self.current];
+        self.errors.push(SyntaxError::new(self.start_line, self.start_column, lexeme.to_string(), message));
     }
     
     fn is_at_end(&self) -> bool {
