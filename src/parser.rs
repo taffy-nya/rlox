@@ -113,9 +113,11 @@ impl<'a> Parser<'a> {
         Ok(Stmt::Var { name, initializer })
     }
 
-    /// statement -> exprstmt | printstmt | block
+    /// statement -> exprstmt | ifstmt | printstmt | block
     fn statement(&mut self) -> Result<Stmt, ParseError> {
-        if self.match_type(&[TokenType::Print]).is_some() {
+        if self.match_type(&[TokenType::If]).is_some() {
+            self.if_statement()
+        } else if self.match_type(&[TokenType::Print]).is_some() {
             self.print_statement()
         } else if self.match_type(&[TokenType::LeftBrace]).is_some() {
             self.block()
@@ -129,6 +131,20 @@ impl<'a> Parser<'a> {
         let expr = self.expression()?;
         self.consume(TokenType::Semicolon, "Expect ';' after expression.")?;
         Ok(Stmt::Expression { expression: expr })
+    }
+
+    /// ifstmt -> "if" "("? expression ")"? statement ( "else" statement )?
+    fn if_statement(&mut self) -> Result<Stmt, ParseError> {
+        self.match_type(&[TokenType::LeftParen]);
+        let condition = self.expression()?;
+        self.match_type(&[TokenType::RightParen]);
+        let then_branch = Box::new(self.statement()?);
+        let else_branch = if self.match_type(&[TokenType::Else]).is_some() {
+            Some(Box::new(self.statement()?))
+        } else {
+            None
+        };
+        Ok(Stmt::If { condition, then_branch, else_branch })
     }
 
     /// printstmt -> "print" expression ";"
@@ -153,9 +169,9 @@ impl<'a> Parser<'a> {
         self.assignment()
     }
 
-    /// assignment -> IDENTIFIER "=" assignment | equality
+    /// assignment -> IDENTIFIER "=" assignment | logic_or
     fn assignment(&mut self) -> Result<Expr, ParseError> {
-        let expr = self.equality()?;
+        let expr = self.logic_or()?;
         if self.match_type(&[TokenType::Equal]).is_some() {
             let equals = self.previous().clone();
             let value = self.assignment()?;
@@ -166,7 +182,27 @@ impl<'a> Parser<'a> {
         }
         Ok(expr)
     }
-    
+
+    /// logic_or -> logic_and ( "or" logic_and )*
+    fn logic_or(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.logic_and()?;
+        while let Some(op) = self.match_type(&[TokenType::Or]) {
+            let right = self.logic_and()?;
+            expr = Expr::Logical { left: Box::new(expr), operator: op, right: Box::new(right) };
+        }
+        Ok(expr)
+    }
+
+    /// logic_and -> equality ( "and" equality )*
+    fn logic_and(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.equality()?;
+        while let Some(op) = self.match_type(&[TokenType::And]) {
+            let right = self.equality()?;
+            expr = Expr::Logical { left: Box::new(expr), operator: op, right: Box::new(right) };
+        }
+        Ok(expr)
+    }
+
     /// equality -> comparison ( ( "!=" | "==" ) comparison )*
     fn equality(&mut self) -> Result<Expr, ParseError> {
         let mut expr = self.comparison()?;

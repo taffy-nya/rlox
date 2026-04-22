@@ -9,6 +9,7 @@ pub enum Stmt {
     Print { expression: Expr },
     Var { name: Token, initializer: Expr },
     Block { statements: Vec<Stmt> },
+    If { condition: Expr, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>> },
 }
 
 impl Stmt {
@@ -33,6 +34,16 @@ impl Stmt {
                 let res = statements.iter().try_for_each(|stmt| stmt.exec(env));
                 env.end_scope();
                 res
+            }
+            Stmt::If { condition, then_branch, else_branch } => {
+                let cond_val = condition.eval(env)?;
+                if cond_val.is_truthy() {
+                    then_branch.exec(env)
+                } else if let Some(else_stmt) = else_branch {
+                    else_stmt.exec(env)
+                } else {
+                    Ok(())
+                }
             }
         }
     }

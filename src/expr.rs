@@ -10,6 +10,7 @@ pub enum Expr {
     Unary { operator: Token, right: Box<Expr> },
     Variable { name: Token },
     Assign { name: Token, value: Box<Expr> },
+    Logical { left: Box<Expr>, operator: Token, right: Box<Expr> },
 }
 
 impl Expr {
@@ -75,10 +76,9 @@ impl Expr {
                         _ => self.eval_error(operator, "Operand must be a number.")
                     },
                     TokenType::Bang => match right_val {
-                        Ok(Literal::Bool(b)) => Ok(Literal::Bool(!b)),
-                        Ok(Literal::Nil) => Ok(Literal::Bool(true)),
-                        _ => Ok(Literal::Bool(false))
-                    },
+                        Ok(val) => Ok(Literal::Bool(!val.is_truthy())),
+                        _ => self.eval_error(operator, "Operand must be a boolean.")
+                    }
                     _ => self.eval_error(operator, "Unknown operator.")
                 }
             }
@@ -93,6 +93,15 @@ impl Expr {
                 match env.assign(&name.lexeme, value.clone()) {
                     Some(_) => Ok(value),
                     None => self.eval_error(name, "Undefined variable.")
+                }
+            }
+            Expr::Logical { left, operator, right } => {
+                let left_val = left.eval(env)?;
+                match operator.token_type {
+                    TokenType::Or if left_val.is_truthy() => Ok(left_val),
+                    TokenType::And if !left_val.is_truthy() => Ok(left_val),
+                    TokenType::Or | TokenType::And => right.eval(env),
+                    _ => self.eval_error(operator, "Unknown logical operator.")
                 }
             }
         }

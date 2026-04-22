@@ -42,6 +42,16 @@ impl fmt::Display for Literal {
     }
 }
 
+impl Literal {
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Literal::Nil => false,
+            Literal::Bool(b) => *b,
+            _ => true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub token_type: TokenType,
