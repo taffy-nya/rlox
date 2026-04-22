@@ -8,7 +8,7 @@ mod parser;
 mod stmt;
 mod interpreter;
 
-fn run(code: &str, interpreter: &mut interpreter::Interpreter) -> bool {
+fn run(code: &str, interpreter: &mut interpreter::Interpreter, in_repl: bool) -> bool {
     let scanner = token::Scanner::new(code);
 
     let tokens = match scanner.tokenize() {
@@ -20,6 +20,17 @@ fn run(code: &str, interpreter: &mut interpreter::Interpreter) -> bool {
             return false;
         }
     };
+
+    if in_repl {
+        let expr_parser = parser::Parser::new(&tokens);
+        if let Ok(expr) = expr_parser.parse_as_expr() {
+            match interpreter.eval(&expr) {
+                Ok(val) => println!("{val}"),
+                Err(err) => eprintln!("{err}"),
+            }
+            return true;
+        }
+    }
 
     let parser = parser::Parser::new(&tokens);
 
@@ -48,7 +59,7 @@ fn run_file(path: &String) {
     let code = std::fs::read_to_string(path).expect("Failed to read file");
     let mut interpreter = interpreter::Interpreter::new();
 
-    if !run(code.as_str(), &mut interpreter) {
+    if !run(code.as_str(), &mut interpreter, false) {
         std::process::exit(1);
     }
 }
@@ -104,7 +115,7 @@ fn run_prompt() {
         if continues || indent > 0 || in_string { continue; }
 
         if !code.trim().is_empty() {
-            run(code.as_str(), &mut interpreter);
+            run(code.as_str(), &mut interpreter, true);
         }
 
         code.clear();

@@ -33,6 +33,14 @@ impl<'a> Parser<'a> {
         }
     }
 
+    pub fn parse_as_expr(mut self) -> Result<Expr, ParseError> {
+        let expr = self.expression()?;
+        if !self.is_at_end() {
+            return self.parse_error("Expect end after expression.");
+        }
+        Ok(expr)
+    }
+
     fn advance(&mut self) -> &Token {
         if !self.is_at_end() {
             self.current += 1;

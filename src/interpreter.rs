@@ -1,4 +1,4 @@
-use crate::{error::EvalError, stmt::Stmt};
+use crate::{error::EvalError, stmt::Stmt, expr::Expr};
 
 use std::collections::HashMap;
 use crate::token::Literal;
@@ -56,6 +56,7 @@ impl Interpreter {
             env: Environment::new(),
         }
     }
+
     pub fn work(&mut self, stmts: &[Stmt]) -> Result<(), Vec<EvalError>> {
         let mut errors = Vec::new();
 
@@ -70,5 +71,9 @@ impl Interpreter {
         } else {
             Err(errors)
         }
+    }
+
+    pub fn eval(&mut self, expr: &Expr) -> Result<Literal, EvalError> {
+        expr.eval(&mut self.env)
     }
 }
