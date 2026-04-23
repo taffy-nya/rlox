@@ -4,7 +4,7 @@ A small Rust implementation of the Lox language from
 [Crafting Interpreters](https://craftinginterpreters.com/).
 
 This project is currently a tree-walk interpreter with a scanner, parser,
-AST, environment, and evaluator.
+AST, lexical environments, callable values, and evaluator.
 
 It is still a work in progress, so many parts of the full Lox language are
 not implemented yet.
@@ -61,13 +61,26 @@ Line continuation can be used for long expressions:
 ## Supported Features
 
 - numbers, strings, booleans, and nil
-- arithmetic and comparison expressions
-- equality operators
-- unary operators
+- arithmetic, comparison, equality, unary, and logical expressions
 - variables and assignment
-- print statements
-- block scopes
+- print statements and block scopes
+- if / else statements, while loops, and for loops
+- break, continue, and return control flow
+- functions and closures
+- native functions, including `clock()`
 - line comments and block comments
+
+`return`, `break`, and `continue` are checked while parsing. For example,
+top-level `return` and loop control outside of a loop are reported before
+evaluation starts.
+
+## Not Yet Implemented
+
+- classes and instances
+- methods and initializers
+- inheritance
+- lists or maps
+- static resolution pass
 
 ## Example
 
@@ -82,4 +95,36 @@ var b = "global b";
 }
 
 print a;
+```
+
+## Functions
+
+```lox
+fun add(a, b) {
+  return a + b;
+}
+
+print add(2, 3);
+```
+
+Functions close over the environment where they are declared:
+
+```lox
+var message = "hello";
+
+fun sayMessage() {
+  print message;
+}
+
+sayMessage();
+```
+
+## Loops
+
+```lox
+for (var i = 0; i < 5; i = i + 1) {
+  if (i == 2) continue;
+  if (i == 4) break;
+  print i;
+}
 ```
