@@ -10,6 +10,7 @@ pub enum Stmt {
     Var { name: Token, initializer: Expr },
     Block { statements: Vec<Stmt> },
     If { condition: Expr, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>> },
+    While { condition: Expr, body: Box<Stmt> },
 }
 
 impl Stmt {
@@ -44,6 +45,12 @@ impl Stmt {
                 } else {
                     Ok(())
                 }
+            }
+            Stmt::While { condition, body } => {
+                while condition.eval(env)?.is_truthy() {
+                    body.exec(env)?;
+                }
+                Ok(())
             }
         }
     }
