@@ -1,9 +1,5 @@
 use crate::{
-    error::EvalError,
-    expr::Expr,
-    token::{Token, Literal},
-    callable::{Callable, Function},
-    env::Env,
+    callable::{Callable, Function}, env::Env, error::EvalError, expr::Expr, token::{Literal, Token}
 };
 
 use std::rc::Rc;
@@ -16,29 +12,41 @@ pub enum Stmt {
     Block { statements: Vec<Stmt> },
     If { condition: Expr, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>> },
     While { condition: Expr, body: Box<Stmt> },
-    Function { name: Token, params: Vec<Token>, body: Vec<Stmt> }
+    Function { name: Token, params: Vec<Token>, body: Vec<Stmt> },
+    Return { keyword: Token, value: Expr },
+}
+
+pub enum ExecFlow {
+    Normal,
+    Return { keyword: Token, value: Literal },
 }
 
 impl Stmt {
-    pub fn exec(&self, env: &Env) -> Result<(), EvalError> {
+    pub fn exec(&self, env: &Env) -> Result<ExecFlow, EvalError> {
         match self {
             Stmt::Expression { expression } => {
                 expression.eval(env)?;
-                Ok(())
+                Ok(ExecFlow::Normal)
             },
             Stmt::Print { expression } => {
                 let val = expression.eval(env)?;
                 println!("{}", val);
-                Ok(())
+                Ok(ExecFlow::Normal)
             },
             Stmt::Var { name, initializer } => {
                 let val = initializer.eval(env)?;
                 env.define(name.lexeme.clone(), val);
-                Ok(())
+                Ok(ExecFlow::Normal)
             }
             Stmt::Block { statements } => {
                 let block_env = Env::enclosed(env.clone());
-                statements.iter().try_for_each(|stmt| stmt.exec(&block_env))
+                for stmt in statements {
+                    match stmt.exec(&block_env)? {
+                        ExecFlow::Normal => continue,
+                        flow @ ExecFlow::Return { .. } => return Ok(flow),
+                    }
+                }
+                Ok(ExecFlow::Normal)
             }
             Stmt::If { condition, then_branch, else_branch } => {
                 let cond_val = condition.eval(env)?;
@@ -47,14 +55,17 @@ impl Stmt {
                 } else if let Some(else_stmt) = else_branch {
                     else_stmt.exec(env)
                 } else {
-                    Ok(())
+                    Ok(ExecFlow::Normal)
                 }
             }
             Stmt::While { condition, body } => {
                 while condition.eval(env)?.is_truthy() {
-                    body.exec(env)?;
+                    match body.exec(env)? {
+                        ExecFlow::Normal => continue,
+                        flow @ ExecFlow::Return { .. } => return Ok(flow),
+                    }
                 }
-                Ok(())
+                Ok(ExecFlow::Normal)
             }
             Stmt::Function { name, params, body } => {
                 let func = Function {
@@ -64,7 +75,10 @@ impl Stmt {
                     env: env.clone(),
                 };
                 env.define(name.lexeme.clone(), Literal::Callable(Rc::new(Callable::Function(func))));
-                Ok(())
+                Ok(ExecFlow::Normal)
+            }
+            Stmt::Return { keyword, value } => {
+                Ok(ExecFlow::Return { keyword: keyword.clone(), value: value.eval(env)? })
             }
         }
     }

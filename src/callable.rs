@@ -1,8 +1,5 @@
 use crate::{
-    error::EvalError, 
-    stmt::Stmt, 
-    token::Literal,
-    env::Env,
+    env::Env, error::EvalError, stmt::{ExecFlow, Stmt}, token::Literal
 };
 
 use std::fmt;
@@ -71,9 +68,11 @@ impl Function {
         for (param, arg) in self.params.iter().zip(args) {
             env.define(param.clone(), arg);
         }
-
         for stmt in &self.body {
-            stmt.exec(&env)?;
+            match stmt.exec(&env)? {
+                ExecFlow::Normal => continue,
+                ExecFlow::Return { value, .. } => return Ok(value),
+            }
         }
         Ok(Literal::Nil)
     }

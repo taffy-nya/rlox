@@ -149,7 +149,7 @@ impl<'a> Parser<'a> {
         Ok(Stmt::Function { name, params, body })
     }
 
-    /// statement -> exprstmt | ifstmt | whilestmt | forstmt | printstmt | block
+    /// statement -> exprstmt | ifstmt | whilestmt | forstmt | returnstmt | printstmt | block
     fn statement(&mut self) -> Result<Stmt, ParseError> {
         if self.match_type(&[TokenType::If]).is_some() {
             self.if_statement()
@@ -157,6 +157,8 @@ impl<'a> Parser<'a> {
             self.while_statement()
         } else if self.match_type(&[TokenType::For]).is_some() {
             self.for_statement()
+        } else if self.match_type(&[TokenType::Return]).is_some() {
+            self.return_statement()
         } else if self.match_type(&[TokenType::Print]).is_some() {
             self.print_statement()
         } else if self.match_type(&[TokenType::LeftBrace]).is_some() {
@@ -242,6 +244,18 @@ impl<'a> Parser<'a> {
         let expr = self.expression()?;
         self.consume(TokenType::Semicolon, "Expect ';' after value.")?;
         Ok(Stmt::Print { expression: expr })
+    }
+
+    /// returnstmt -> "return" expression? ";"
+    fn return_statement(&mut self) -> Result<Stmt, ParseError> {
+        let keyword = self.previous().clone();
+        let value = if !self.check_type(&TokenType::Semicolon) {
+            self.expression()?
+        } else {
+            Expr::Literal { value: Literal::Nil }
+        };
+        self.consume(TokenType::Semicolon, "Expect ';' after return value.")?;
+        Ok(Stmt::Return { keyword, value })
     }
 
     /// block -> "{" declaration* "}"
