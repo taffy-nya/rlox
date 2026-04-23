@@ -1,7 +1,12 @@
-use crate::expr::Expr;
-use crate::error::EvalError;
-use crate::token::Token;
-use crate::interpreter::Environment;
+use crate::{
+    error::EvalError,
+    expr::Expr,
+    token::{Token, Literal},
+    callable::{Callable, Function},
+    env::Env,
+};
+
+use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
@@ -11,10 +16,11 @@ pub enum Stmt {
     Block { statements: Vec<Stmt> },
     If { condition: Expr, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>> },
     While { condition: Expr, body: Box<Stmt> },
+    Function { name: Token, params: Vec<Token>, body: Vec<Stmt> }
 }
 
 impl Stmt {
-    pub fn exec(&self, env: &mut Environment) -> Result<(), EvalError> {
+    pub fn exec(&self, env: &Env) -> Result<(), EvalError> {
         match self {
             Stmt::Expression { expression } => {
                 expression.eval(env)?;
@@ -31,10 +37,8 @@ impl Stmt {
                 Ok(())
             }
             Stmt::Block { statements } => {
-                env.new_scope();
-                let res = statements.iter().try_for_each(|stmt| stmt.exec(env));
-                env.end_scope();
-                res
+                let block_env = Env::enclosed(env.clone());
+                statements.iter().try_for_each(|stmt| stmt.exec(&block_env))
             }
             Stmt::If { condition, then_branch, else_branch } => {
                 let cond_val = condition.eval(env)?;
@@ -50,6 +54,16 @@ impl Stmt {
                 while condition.eval(env)?.is_truthy() {
                     body.exec(env)?;
                 }
+                Ok(())
+            }
+            Stmt::Function { name, params, body } => {
+                let func = Function {
+                    name: name.lexeme.clone(),
+                    params: params.iter().map(|t| t.lexeme.clone()).collect(),
+                    body: body.clone(),
+                    env: env.clone(),
+                };
+                env.define(name.lexeme.clone(), Literal::Callable(Rc::new(Callable::Function(func))));
                 Ok(())
             }
         }

@@ -1,4 +1,4 @@
-use std::env;
+use std::env::args;
 use std::io::Write;
 
 mod error;
@@ -7,6 +7,8 @@ mod expr;
 mod parser;
 mod stmt;
 mod interpreter;
+mod callable;
+mod env;
 
 fn run(code: &str, interpreter: &mut interpreter::Interpreter, in_repl: bool) -> bool {
     let scanner = token::Scanner::new(code);
@@ -125,7 +127,7 @@ fn run_prompt() {
 }
 
 fn main() {
-    let args = env::args().collect::<Vec<String>>();
+    let args = args().collect::<Vec<String>>();
     if args.len() > 2 {
         eprintln!("Usage: {} [script]", args[0]);
     } else if args.len() == 2 {

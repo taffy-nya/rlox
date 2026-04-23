@@ -1,5 +1,6 @@
-use std::fmt;
 use crate::token::{Token, TokenType};
+
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct EvalError {

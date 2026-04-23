@@ -1,6 +1,8 @@
-use crate::token::{Literal, TokenType, Token};
-use crate::error::EvalError;
-use crate::interpreter::Environment;
+use crate::{
+    error::EvalError, 
+    token::{Literal, Token, TokenType},
+    env::Env,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
@@ -11,6 +13,7 @@ pub enum Expr {
     Variable { name: Token },
     Assign { name: Token, value: Box<Expr> },
     Logical { left: Box<Expr>, operator: Token, right: Box<Expr> },
+    Call { callee: Box<Expr>, rparen: Token, args: Vec<Expr> },
 }
 
 impl Expr {
@@ -18,7 +21,7 @@ impl Expr {
         Err(EvalError::new(token, message))
     }
 
-    pub fn eval(&self, env: &mut Environment) -> Result<Literal, EvalError> {
+    pub fn eval(&self, env: &Env) -> Result<Literal, EvalError> {
         match self {
             Expr::Binary { left, operator, right } => {
                 let left_val = left.eval(env);
@@ -102,6 +105,17 @@ impl Expr {
                     TokenType::And if !left_val.is_truthy() => Ok(left_val),
                     TokenType::Or | TokenType::And => right.eval(env),
                     _ => self.eval_error(operator, "Unknown logical operator.")
+                }
+            }
+            Expr::Call { callee, rparen, args } => {
+                let callee_val = callee.eval(env)?;
+                let arg_vals = args.iter().map(|arg| arg.eval(env)).collect::<Result<Vec<_>, _>>()?;
+                match callee_val {
+                    Literal::Callable(callable) if arg_vals.len() == callable.arity() => callable.call(arg_vals),
+                    Literal::Callable(callable) => self.eval_error(
+                        rparen, &format!("Expected {} arguments but got {}.", 
+                        callable.arity(), arg_vals.len())),
+                    _ => self.eval_error(rparen, "Can only call functions and classes."),
                 }
             }
         }

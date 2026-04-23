@@ -1,7 +1,9 @@
-use crate::error::ParseError;
-use crate::expr::Expr;
-use crate::token::{Token, TokenType, Literal};
-use crate::stmt::Stmt;
+use crate::{
+    error::ParseError, 
+    expr::Expr, 
+    token::{Token, TokenType, Literal},
+    stmt::Stmt,
+};
 
 pub struct Parser<'a> {
     tokens: &'a [Token],
@@ -92,10 +94,12 @@ impl<'a> Parser<'a> {
         Err(ParseError::new(token, message))
     }
     
-    /// declaration -> varDecl | statement
+    /// declaration -> varDecl | funcDecl | statement
     fn declaration(&mut self) -> Result<Stmt, ParseError> {
         if self.match_type(&[TokenType::Var]).is_some() {
             self.var_declaration()
+        } else if self.match_type(&[TokenType::Fun]).is_some() {
+            self.func_declaration()
         } else {
             self.statement()
         }        
@@ -111,6 +115,38 @@ impl<'a> Parser<'a> {
         };
         self.consume(TokenType::Semicolon, "Expect ';' after variable declaration.")?;
         Ok(Stmt::Var { name, initializer })
+    }
+
+    /// funcDecl -> "fun" function
+    fn func_declaration(&mut self) -> Result<Stmt, ParseError> {
+        self.function("function")
+    }
+
+    /// function -> IDENTIFIER "(" parameters? ")" block
+    fn function(&mut self, kind: &str) -> Result<Stmt, ParseError> {
+        let name = self.consume(TokenType::Identifier, &format!("Expect {kind} name."))?.clone();
+        self.consume(TokenType::LeftParen, &format!("Expect '(' after {kind} name."))?;
+        let mut params = Vec::new();
+        if !self.check_type(&TokenType::RightParen) {
+            loop {
+                if params.len() >= 255 {
+                    self.parse_error_at(self.peek(), "Can't have more than 255 parameters.")?;
+                }
+                params.push(
+                    self.consume(TokenType::Identifier, "Expect parameter name.")?.clone()
+                );
+                if self.match_type(&[TokenType::Comma]).is_none() {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenType::RightParen, "Expect ')' after parameters.")?;
+        self.consume(TokenType::LeftBrace, &format!("Expect '{{' before {kind} body."))?;
+        let body = match self.block()? {
+            Stmt::Block { statements } => statements,
+            _ => unreachable!(),
+        };
+        Ok(Stmt::Function { name, params, body })
     }
 
     /// statement -> exprstmt | ifstmt | whilestmt | forstmt | printstmt | block
@@ -308,13 +344,44 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    /// unary -> ( "!" | "-" ) unary | primary
+    /// unary -> ( "!" | "-" ) unary | call
     fn unary(&mut self) -> Result<Expr, ParseError> {
         if let Some(operator) = self.match_type(&[TokenType::Bang, TokenType::Minus]) {
             let right = self.unary()?;
             return Ok(Expr::Unary { operator, right: Box::new(right) });
         }
-        self.primary()
+        self.call()
+    }
+
+    /// call -> primary ( "(" arguments? ")" )* ;
+    fn call(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.primary()?;
+        loop {
+            if self.match_type(&[TokenType::LeftParen]).is_some() {
+                expr = self.arguments(expr)?;
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
+    }
+
+    /// arguments -> expression ( "," expression )*
+    fn arguments(&mut self, expr: Expr) -> Result<Expr, ParseError> {
+        let mut args = Vec::new();
+        if !self.check_type(&TokenType::RightParen) {
+            loop {
+                args.push(self.expression()?);
+                if self.match_type(&[TokenType::Comma]).is_none() {
+                    break;
+                }
+                if args.len() > 255 {
+                    self.parse_error_at(self.peek(), "Can't have more than 255 arguments.")?;
+                }
+            }
+        }
+        let rparen = self.consume(TokenType::RightParen, "Expect ')' after arguments.")?.clone();
+        Ok(Expr::Call { callee: Box::new(expr), rparen, args })
     }
 
     /// primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER

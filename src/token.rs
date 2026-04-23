@@ -1,5 +1,10 @@
+use crate::{
+    error::SyntaxError,
+    callable::Callable,
+};
+
 use std::fmt;
-use crate::error::SyntaxError;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
@@ -29,6 +34,7 @@ pub enum Literal {
     String(String),
     Bool(bool),
     Nil,
+    Callable(Rc<Callable>),
 }
 
 impl fmt::Display for Literal {
@@ -38,6 +44,7 @@ impl fmt::Display for Literal {
             Literal::String(s) => write!(f, "{s}"),
             Literal::Bool(b) => write!(f, "{b}"),
             Literal::Nil => write!(f, "nil"),
+            Literal::Callable(c) => write!(f, "<fn {}>", c.name()),
         }
     }
 }
