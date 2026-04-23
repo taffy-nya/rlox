@@ -24,6 +24,7 @@ pub enum TokenType {
     // Keywords
     And, Class, Else, False, Fun, For, If, Nil, Or,
     Print, Return, Super, This, True, Var, While,
+    Continue, Break,
 
     Eof,
 }
@@ -295,6 +296,8 @@ impl<'a> Scanner<'a> {
             "true" => TokenType::True,
             "var" | "let" => TokenType::Var,
             "while" => TokenType::While,
+            "continue" => TokenType::Continue,
+            "break" => TokenType::Break,
             _ => TokenType::Identifier
         };
         self.add_token(token_type);

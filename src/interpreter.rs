@@ -28,6 +28,12 @@ impl Interpreter {
                         message: "Cannot return from top-level code.".to_string(),
                     });
                 }
+                Ok(ExecFlow::Break { keyword }) => {
+                    errors.push(EvalError::new(&keyword, "Can't use 'break' outside of a loop."));
+                }
+                Ok(ExecFlow::Continue { keyword }) => {
+                    errors.push(EvalError::new(&keyword, "Can't use 'continue' outside of a loop."));
+                }
                 Err(e) => errors.push(e),
             }
         }

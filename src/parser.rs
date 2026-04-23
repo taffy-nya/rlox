@@ -8,11 +8,13 @@ use crate::{
 pub struct Parser<'a> {
     tokens: &'a [Token],
     current: usize,
+    loop_depth: usize,
+    function_depth: usize,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token]) -> Self {
-        Self { tokens, current: 0 }
+        Self { tokens, current: 0, loop_depth: 0, function_depth: 0 }
     }
 
     // program -> declaration* EOF
@@ -90,7 +92,7 @@ impl<'a> Parser<'a> {
         Err(ParseError::new(self.peek(), message))
     }
 
-    fn parse_error_at(&self, token: &Token, message: &str) -> Result<(), ParseError> {
+    fn parse_error_at<T>(&self, token: &Token, message: &str) -> Result<T, ParseError> {
         Err(ParseError::new(token, message))
     }
     
@@ -142,14 +144,16 @@ impl<'a> Parser<'a> {
         }
         self.consume(TokenType::RightParen, "Expect ')' after parameters.")?;
         self.consume(TokenType::LeftBrace, &format!("Expect '{{' before {kind} body."))?;
+        self.function_depth += 1;
         let body = match self.block()? {
             Stmt::Block { statements } => statements,
             _ => unreachable!(),
         };
+        self.function_depth -= 1;
         Ok(Stmt::Function { name, params, body })
     }
 
-    /// statement -> exprstmt | ifstmt | whilestmt | forstmt | returnstmt | printstmt | block
+    /// statement -> exprstmt | ifstmt | whilestmt | forstmt | returnstmt | continuestmt | breakstmt | printstmt | block
     fn statement(&mut self) -> Result<Stmt, ParseError> {
         if self.match_type(&[TokenType::If]).is_some() {
             self.if_statement()
@@ -159,6 +163,10 @@ impl<'a> Parser<'a> {
             self.for_statement()
         } else if self.match_type(&[TokenType::Return]).is_some() {
             self.return_statement()
+        } else if self.match_type(&[TokenType::Continue]).is_some() {
+            self.continue_statement()
+        } else if self.match_type(&[TokenType::Break]).is_some() {
+            self.break_statement()
         } else if self.match_type(&[TokenType::Print]).is_some() {
             self.print_statement()
         } else if self.match_type(&[TokenType::LeftBrace]).is_some() {
@@ -194,7 +202,9 @@ impl<'a> Parser<'a> {
         self.match_type(&[TokenType::LeftParen]);
         let condition = self.expression()?;
         self.match_type(&[TokenType::RightParen]);
+        self.loop_depth += 1;
         let body = Box::new(self.statement()?);
+        self.loop_depth -= 1;
         Ok(Stmt::While { condition, body })
     }
 
@@ -204,9 +214,9 @@ impl<'a> Parser<'a> {
         let initializer = if self.match_type(&[TokenType::Semicolon]).is_some() {
             None
         } else if self.match_type(&[TokenType::Var]).is_some() {
-            Some(self.var_declaration()?)
+            Some(Box::new(self.var_declaration()?))
         } else {
-            Some(self.expression_statement()?)
+            Some(Box::new(self.expression_statement()?))
         };
         let condition = if !self.check_type(&TokenType::Semicolon) {
             self.expression()?
@@ -220,23 +230,10 @@ impl<'a> Parser<'a> {
             None
         };
         self.consume(TokenType::RightParen, "Expect ')' after for clauses.")?;
-        let mut body = self.statement()?;
-        if let Some(inc) = increment {
-            body = Stmt::Block {
-                statements: vec![
-                    body, Stmt::Expression { expression: inc },
-                ]
-            };
-        }
-        body = Stmt::While { condition, body: Box::new(body) };
-        if let Some(init) = initializer {
-            body = Stmt::Block {
-                statements: vec![
-                    init, body,
-                ]
-            };
-        }
-        Ok(body)
+        self.loop_depth += 1;
+        let body = Box::new(self.statement()?);
+        self.loop_depth -= 1;
+        Ok(Stmt::For { initializer, condition, increment, body })
     }
 
     /// printstmt -> "print" expression ";"
@@ -249,6 +246,9 @@ impl<'a> Parser<'a> {
     /// returnstmt -> "return" expression? ";"
     fn return_statement(&mut self) -> Result<Stmt, ParseError> {
         let keyword = self.previous().clone();
+        if self.function_depth == 0 {
+            return self.parse_error_at(&keyword, "Can't return from top-level code.");
+        }
         let value = if !self.check_type(&TokenType::Semicolon) {
             self.expression()?
         } else {
@@ -256,6 +256,26 @@ impl<'a> Parser<'a> {
         };
         self.consume(TokenType::Semicolon, "Expect ';' after return value.")?;
         Ok(Stmt::Return { keyword, value })
+    }
+
+    /// continuestmt -> "continue" ";"
+    fn continue_statement(&mut self) -> Result<Stmt, ParseError> {
+        let keyword = self.previous().clone();
+        if self.loop_depth == 0 {
+            return self.parse_error_at(&keyword, "Can't use 'continue' outside of a loop.");
+        }
+        self.consume(TokenType::Semicolon, "Expect ';' after 'continue'.")?;
+        Ok(Stmt::Continue { keyword })
+    }
+
+    /// breakstmt -> "break" ";"
+    fn break_statement(&mut self) -> Result<Stmt, ParseError> {
+        let keyword = self.previous().clone();
+        if self.loop_depth == 0 {
+            return self.parse_error_at(&keyword, "Can't use 'break' outside of a loop.");
+        }
+        self.consume(TokenType::Semicolon, "Expect ';' after 'break'.")?;
+        Ok(Stmt::Break { keyword })
     }
 
     /// block -> "{" declaration* "}"

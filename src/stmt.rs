@@ -12,13 +12,18 @@ pub enum Stmt {
     Block { statements: Vec<Stmt> },
     If { condition: Expr, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>> },
     While { condition: Expr, body: Box<Stmt> },
+    For { initializer: Option<Box<Stmt>>, condition: Expr, increment: Option<Expr>, body: Box<Stmt> },
     Function { name: Token, params: Vec<Token>, body: Vec<Stmt> },
     Return { keyword: Token, value: Expr },
+    Break { keyword: Token },
+    Continue { keyword: Token },
 }
 
 pub enum ExecFlow {
     Normal,
     Return { keyword: Token, value: Literal },
+    Break { keyword: Token },
+    Continue { keyword: Token },
 }
 
 impl Stmt {
@@ -43,7 +48,9 @@ impl Stmt {
                 for stmt in statements {
                     match stmt.exec(&block_env)? {
                         ExecFlow::Normal => continue,
-                        flow @ ExecFlow::Return { .. } => return Ok(flow),
+                        flow @ ExecFlow::Return { .. }
+                        | flow @ ExecFlow::Break { .. }
+                        | flow @ ExecFlow::Continue { .. } => return Ok(flow),
                     }
                 }
                 Ok(ExecFlow::Normal)
@@ -62,7 +69,32 @@ impl Stmt {
                 while condition.eval(env)?.is_truthy() {
                     match body.exec(env)? {
                         ExecFlow::Normal => continue,
+                        ExecFlow::Continue { .. } => continue,
+                        ExecFlow::Break { .. } => break,
                         flow @ ExecFlow::Return { .. } => return Ok(flow),
+                    }
+                }
+                Ok(ExecFlow::Normal)
+            }
+            Stmt::For { initializer, condition, increment, body } => {
+                let for_env = Env::enclosed(env.clone());
+                if let Some(init) = initializer {
+                    match init.exec(&for_env)? {
+                        ExecFlow::Normal => {}
+                        flow @ ExecFlow::Return { .. }
+                        | flow @ ExecFlow::Break { .. }
+                        | flow @ ExecFlow::Continue { .. } => return Ok(flow),
+                    }
+                }
+                while condition.eval(&for_env)?.is_truthy() {
+                    match body.exec(&for_env)? {
+                        ExecFlow::Normal => {}
+                        ExecFlow::Continue { .. } => {}
+                        ExecFlow::Break { .. } => break,
+                        flow @ ExecFlow::Return { .. } => return Ok(flow),
+                    }
+                    if let Some(inc) = increment {
+                        inc.eval(&for_env)?;
                     }
                 }
                 Ok(ExecFlow::Normal)
@@ -80,6 +112,8 @@ impl Stmt {
             Stmt::Return { keyword, value } => {
                 Ok(ExecFlow::Return { keyword: keyword.clone(), value: value.eval(env)? })
             }
+            Stmt::Break { keyword } => Ok(ExecFlow::Break { keyword: keyword.clone() }),
+            Stmt::Continue { keyword } => Ok(ExecFlow::Continue { keyword: keyword.clone() }),
         }
     }
 }

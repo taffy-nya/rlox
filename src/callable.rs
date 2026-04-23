@@ -1,5 +1,8 @@
 use crate::{
-    env::Env, error::EvalError, stmt::{ExecFlow, Stmt}, token::Literal
+    env::Env, 
+    error::EvalError, 
+    stmt::{ExecFlow, Stmt}, 
+    token::Literal
 };
 
 use std::fmt;
@@ -72,6 +75,12 @@ impl Function {
             match stmt.exec(&env)? {
                 ExecFlow::Normal => continue,
                 ExecFlow::Return { value, .. } => return Ok(value),
+                ExecFlow::Break { keyword } => {
+                    return Err(EvalError::new(&keyword, "Can't use 'break' outside of a loop."));
+                }
+                ExecFlow::Continue { keyword } => {
+                    return Err(EvalError::new(&keyword, "Can't use 'continue' outside of a loop."));
+                }
             }
         }
         Ok(Literal::Nil)
